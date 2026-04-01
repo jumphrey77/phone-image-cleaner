@@ -8,6 +8,7 @@ const DatabaseService = {
       store = new Store({ name: 'photo-cleaner-db', cwd: dbPath })
       if (!store.get('folders')) store.set('folders', [])
       if (!store.get('actionsLog')) store.set('actionsLog', [])
+      if (!store.get('lastScan')) store.set('lastScan', null)
       return { success: true }
     } catch (err) {
       return { success: false, error: err.message }
@@ -16,11 +17,12 @@ const DatabaseService = {
 
   saveFolders(folders) {
     try {
-      const existing = store.get('folders') || []
       const map = {}
+      const existing = store.get('folders') || []
       existing.forEach((f) => (map[f.path] = f))
       folders.forEach((f) => { map[f.path] = { ...(map[f.path] || {}), ...f } })
       store.set('folders', Object.values(map))
+      store.set('lastScan', new Date().toISOString())
       return { success: true }
     } catch (err) {
       return { success: false, error: err.message }
@@ -39,7 +41,21 @@ const DatabaseService = {
 
   getFolders() {
     try {
-      return { success: true, folders: store.get('folders') || [] }
+      return {
+        success: true,
+        folders: store.get('folders') || [],
+        lastScan: store.get('lastScan') || null
+      }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
+  clearFolders() {
+    try {
+      store.set('folders', [])
+      store.set('lastScan', null)
+      return { success: true }
     } catch (err) {
       return { success: false, error: err.message }
     }

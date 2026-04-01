@@ -7,13 +7,14 @@ const ACTIONS = [
   { id: 'skip', label: '⏭ Skip', desc: 'Come back to this folder later.' }
 ]
 
-export default function ActionPanel({ folder, suggestedName, onSuggestedNameChange, onExecute, executing, progress }) {
+export default function ActionPanel({ folder, suggestedName, onSuggestedNameChange, onExecute, executing, progress, whatIf }) {
   const [selectedAction, setSelectedAction] = useState('copy-to-pc')
 
   if (!folder) {
     return (
       <div className="action-panel empty">
         <div className="ap-empty">Select a folder to see actions</div>
+        {whatIf && <div className="whatif-banner">⚠ WhatIf Mode — no files will be changed</div>}
       </div>
     )
   }
@@ -21,6 +22,7 @@ export default function ActionPanel({ folder, suggestedName, onSuggestedNameChan
   if (folder.locked) {
     return (
       <div className="action-panel">
+        {whatIf && <div className="whatif-banner">⚠ WhatIf Mode — no files will be changed</div>}
         <div className="ap-locked">
           <span>🔒</span>
           <p>This folder is protected and cannot be modified.</p>
@@ -38,6 +40,12 @@ export default function ActionPanel({ folder, suggestedName, onSuggestedNameChan
 
   return (
     <div className="action-panel">
+      {whatIf && (
+        <div className="whatif-banner">
+          ⚠ WhatIf Mode — actions will be logged but NO files will be changed
+        </div>
+      )}
+
       <h3>Actions</h3>
 
       <div className="ap-folder-name">
@@ -80,11 +88,15 @@ export default function ActionPanel({ folder, suggestedName, onSuggestedNameChan
       )}
 
       <button
-        className="btn-primary btn-execute"
+        className={`btn-primary btn-execute ${whatIf ? 'btn-whatif-exec' : ''}`}
         onClick={handleExecute}
         disabled={executing}
       >
-        {executing ? '⏳ Working...' : '▶ Execute'}
+        {executing
+          ? '⏳ Working...'
+          : whatIf
+            ? '▶ Simulate (WhatIf)'
+            : '▶ Execute'}
       </button>
     </div>
   )

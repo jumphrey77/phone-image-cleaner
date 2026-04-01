@@ -5,7 +5,7 @@ needed-updates.txt
 .env
 *.log
 .DS_Store
-
+.git
 DELETED/
 *.zip
 /node_modules/

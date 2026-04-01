@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 const api = {
+  settings: {
+    load: () => ipcRenderer.invoke('settings:load'),
+    save: (settings) => ipcRenderer.invoke('settings:save', settings),
+    isConfigured: () => ipcRenderer.invoke('settings:isConfigured')
+  },
   adb: {
     checkConnection: (adbPath) => ipcRenderer.invoke('adb:checkConnection', adbPath),
     listFolders: (adbPath, devicePath) => ipcRenderer.invoke('adb:listFolders', { adbPath, devicePath }),
@@ -19,6 +24,7 @@ const api = {
     saveFolders: (folders) => ipcRenderer.invoke('db:saveFolders', folders),
     updateFolderStatus: (folderPath, status) => ipcRenderer.invoke('db:updateFolderStatus', { folderPath, status }),
     getFolders: () => ipcRenderer.invoke('db:getFolders'),
+    clearFolders: () => ipcRenderer.invoke('db:clearFolders'),
     logAction: (entry) => ipcRenderer.invoke('db:logAction', entry)
   },
   gp: {

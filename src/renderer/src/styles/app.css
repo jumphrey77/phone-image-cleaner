@@ -108,6 +108,36 @@ button { cursor: pointer; }
 .ap-progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width .2s; }
 .ap-progress-text { font-size: 10px; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ── WhatIf Mode ──────────────────────────────────────────────────────────── */
+.space-tracker.whatif-active { background: #2a1a0a; border-bottom: 1px solid #92400e; }
+.st-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.btn-whatif { background: transparent; border: 1px solid #4b5563; color: #9ca3af; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 500; }
+.btn-whatif:hover { border-color: #f59e0b; color: #fbbf24; }
+.btn-whatif.active { background: #92400e; border-color: #f59e0b; color: #fef3c7; animation: pulse-warn 2s infinite; }
+.btn-settings { background: transparent; border: 1px solid #2d3148; color: #6b7280; border-radius: 6px; padding: 4px 8px; font-size: 14px; }
+.btn-settings:hover { color: #e5e7eb; border-color: #4b5563; }
+.whatif-banner { background: #92400e; color: #fef3c7; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; text-align: center; }
+.btn-whatif-exec { background: #b45309 !important; }
+.btn-whatif-exec:hover:not(:disabled) { background: #92400e !important; }
+@keyframes pulse-warn { 0%, 100% { opacity: 1; } 50% { opacity: .75; } }
+
+/* ── Settings Modal ───────────────────────────────────────────────────────── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; width: 520px; max-height: 85vh; display: flex; flex-direction: column; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #2d3148; }
+.modal-header h2 { font-size: 16px; }
+.modal-close { background: transparent; border: none; color: #6b7280; font-size: 16px; cursor: pointer; padding: 4px 8px; }
+.modal-close:hover { color: #e5e7eb; }
+.modal-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 4px; }
+.modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid #2d3148; }
+.form-check label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #e5e7eb; text-transform: none; letter-spacing: 0; }
+.form-check input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+
+/* ── DeviceMode header tweaks ─────────────────────────────────────────────── */
+.dm-title-group { display: flex; flex-direction: column; align-items: center; }
+.dm-last-scan { font-size: 10px; color: #6b7280; }
+.dm-last-scan.warn { color: #f59e0b; }
+
 /* ── Execution Log ────────────────────────────────────────────────────────── */
 .execution-log { height: 120px; border-top: 1px solid #2d3148; background: #0a0c12; display: flex; flex-direction: column; flex-shrink: 0; }
 .el-header { padding: 4px 12px; font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid #1e2130; }

@@ -3,7 +3,7 @@ import FolderList from './FolderList'
 import FolderDetail from './FolderDetail'
 import ActionPanel from './ActionPanel'
 
-export default function DeviceMode({ settings, onSpaceFreed, addLog, onBack }) {
+export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onBack }) {
   const [folders, setFolders] = useState([])
   const [selectedFolder, setSelectedFolder] = useState(null)
   const [files, setFiles] = useState([])
@@ -12,27 +12,48 @@ export default function DeviceMode({ settings, onSpaceFreed, addLog, onBack }) {
   const [executing, setExecuting] = useState(false)
   const [executionProgress, setExecutionProgress] = useState(null)
   const [suggestedName, setSuggestedName] = useState('')
+  const [lastScan, setLastScan] = useState(null)
 
+  // On mount: load from cache — do NOT auto-scan the device
   useEffect(() => {
-    loadFolders()
+    loadFromCache()
   }, [])
 
-  const loadFolders = async () => {
+  const loadFromCache = async () => {
     setLoading(true)
-    addLog({ action: 'SCAN', result: `Scanning ${settings.devicePath}...` })
-    const result = await window.api.adb.listFolders(settings.adbPath, settings.devicePath)
-    if (result.success) {
-      // Sort: locked last, then by size descending
+    const result = await window.api.db.getFolders()
+    if (result.success && result.folders && result.folders.length > 0) {
       const sorted = result.folders.sort((a, b) => {
         if (a.locked && !b.locked) return 1
         if (!a.locked && b.locked) return -1
         return (b.totalSizeMb || 0) - (a.totalSizeMb || 0)
       })
       setFolders(sorted)
+      setLastScan(result.lastScan || null)
+      addLog({ action: 'LOAD', result: `Loaded ${sorted.length} folders from cache` })
+    } else {
+      // Nothing cached yet — prompt user to scan
+      addLog({ action: 'LOAD', result: 'No cached data — use Refresh to scan device' })
+    }
+    setLoading(false)
+  }
+
+  const scanDevice = async () => {
+    setLoading(true)
+    addLog({ action: 'SCAN', result: `Scanning ${settings.devicePath}...` })
+    const result = await window.api.adb.listFolders(settings.adbPath, settings.devicePath)
+    if (result.success) {
+      const sorted = result.folders.sort((a, b) => {
+        if (a.locked && !b.locked) return 1
+        if (!a.locked && b.locked) return -1
+        return (b.totalSizeMb || 0) - (a.totalSizeMb || 0)
+      })
+      setFolders(sorted)
+      setLastScan(new Date().toISOString())
       await window.api.db.saveFolders(sorted)
       addLog({ action: 'SCAN', result: `Found ${sorted.length} folders` })
     } else {
-      addLog({ action: 'SCAN', result: 'Failed', error: result.error })
+      addLog({ action: 'SCAN', result: 'Scan failed', error: result.error })
     }
     setLoading(false)
   }
@@ -47,7 +68,6 @@ export default function DeviceMode({ settings, onSpaceFreed, addLog, onBack }) {
     const result = await window.api.adb.listFiles(settings.adbPath, folder.path)
     if (result.success) {
       setFiles(result.files)
-      // Generate suggested folder name
       const nameResult = await window.api.fs.generateFolderName(
         folder.path,
         result.files,
@@ -69,70 +89,105 @@ export default function DeviceMode({ settings, onSpaceFreed, addLog, onBack }) {
     setExecutionProgress({ total: files.length, done: 0, current: '' })
 
     if (action === 'copy-to-pc' || action === 'move-to-pc') {
-      // Ensure destination folder exists
-      await window.api.fs.ensureDir(localDest)
+      if (whatIf) {
+        // WhatIf: simulate the loop, log what would happen — no real file ops
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          setExecutionProgress({ total: files.length, done: i + 1, current: file.name })
+          addLog({
+            action: `[WHATIF] COPY`,
+            folder: selectedFolder.name,
+            filename: file.name,
+            result: `Would copy → ${localDest}\\${file.name}`
+          })
+          freedBytes += file.size
+          // Small artificial delay so progress is visible
+          await new Promise((r) => setTimeout(r, 30))
+        }
+      } else {
+        // Live execution
+        await window.api.fs.ensureDir(localDest)
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const localFilePath = `${localDest}\\${file.name}`
-        setExecutionProgress({ total: files.length, done: i, current: file.name })
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          const localFilePath = `${localDest}\\${file.name}`
+          setExecutionProgress({ total: files.length, done: i, current: file.name })
 
-        // Pull file
-        const pullResult = await window.api.adb.pullFile(
-          settings.adbPath,
-          file.remotePath,
-          localFilePath
-        )
+          const pullResult = await window.api.adb.pullFile(
+            settings.adbPath,
+            file.remotePath,
+            localFilePath
+          )
 
-        if (pullResult.success) {
-          // Verify
-          const verify = await window.api.fs.verifyFile(localFilePath, file.size)
-          if (verify.sizeMatch) {
-            freedBytes += file.size
-            addLog({ action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'OK' })
-            await window.api.db.logAction({
-              action: 'COPY', folder: selectedFolder.name,
-              filename: file.name, size_bytes: file.size, result: 'OK'
-            })
-            await window.api.fs.appendLog(
-              `${settings.localPicturesRoot}\\execution_log.txt`,
-              { action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'OK' }
-            )
+          if (pullResult.success) {
+            const verify = await window.api.fs.verifyFile(localFilePath, file.size)
+            if (verify.sizeMatch) {
+              freedBytes += file.size
+              addLog({ action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'OK' })
+              await window.api.db.logAction({
+                action: 'COPY', folder: selectedFolder.name,
+                filename: file.name, size_bytes: file.size, result: 'OK'
+              })
+              await window.api.fs.appendLog(
+                `${settings.localPicturesRoot}\\execution_log.txt`,
+                { action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'OK' }
+              )
+            } else {
+              addLog({ action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'SIZE MISMATCH', error: 'Verification failed' })
+            }
           } else {
-            addLog({ action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'SIZE MISMATCH', error: 'Verification failed' })
+            addLog({ action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'FAILED', error: pullResult.error })
           }
-        } else {
-          addLog({ action: 'COPY', folder: selectedFolder.name, filename: file.name, result: 'FAILED', error: pullResult.error })
         }
       }
     }
 
-    // Update folder status
+    // Update folder status (even in WhatIf, update the display state so you can see what would be done)
     const newStatus = action === 'leave-alone' ? 'locked' : action === 'skip' ? 'skipped' : 'done'
-    await window.api.db.updateFolderStatus(selectedFolder.path, newStatus)
+    if (!whatIf) {
+      await window.api.db.updateFolderStatus(selectedFolder.path, newStatus)
+    }
     setFolders((prev) =>
       prev.map((f) => (f.path === selectedFolder.path ? { ...f, status: newStatus } : f))
     )
 
-    onSpaceFreed(freedBytes / 1024 / 1024)
+    if (!whatIf) {
+      onSpaceFreed(freedBytes / 1024 / 1024)
+    }
+
     setExecutionProgress(null)
     setExecuting(false)
     setSelectedFolder(null)
     setFiles([])
 
     addLog({
-      action: action.toUpperCase(),
+      action: whatIf ? `[WHATIF] ${action.toUpperCase()}` : action.toUpperCase(),
       folder: selectedFolder.name,
-      result: `Done — ${(freedBytes / 1024 / 1024).toFixed(1)} MB processed`
+      result: `${whatIf ? 'Simulated' : 'Done'} — ${(freedBytes / 1024 / 1024).toFixed(1)} MB ${whatIf ? 'would be' : ''} processed`
     })
+  }
+
+  const formatScanTime = (iso) => {
+    if (!iso) return 'Never'
+    return new Date(iso).toLocaleString()
   }
 
   return (
     <div className="device-mode">
       <div className="dm-header">
         <button className="btn-ghost" onClick={onBack}>← Back to Setup</button>
-        <h2>📱 Device Mode</h2>
-        <button className="btn-ghost" onClick={loadFolders}>↻ Refresh</button>
+        <div className="dm-title-group">
+          <h2>📱 Device Mode</h2>
+          {lastScan && (
+            <span className="dm-last-scan">Last scan: {formatScanTime(lastScan)}</span>
+          )}
+          {!lastScan && !loading && (
+            <span className="dm-last-scan warn">No scan yet — connect phone and click Refresh</span>
+          )}
+        </div>
+        <button className="btn-ghost" onClick={scanDevice} disabled={loading}>
+          {loading ? '⏳ Loading...' : '↻ Refresh Device'}
+        </button>
       </div>
 
       <div className="dm-body">
@@ -154,6 +209,7 @@ export default function DeviceMode({ settings, onSpaceFreed, addLog, onBack }) {
           onExecute={executeAction}
           executing={executing}
           progress={executionProgress}
+          whatIf={whatIf}
         />
       </div>
     </div>

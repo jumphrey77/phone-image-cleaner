@@ -8,11 +8,15 @@ function isProtected(filePath) {
 }
 
 function parseLsOutput(raw) {
-  const lines = raw.trim().split('\n')
   const files = []
-  for (const line of lines) {
-    if (!line || line.startsWith('total') || line.trimStart().startsWith('d')) continue
-    const match = line.match(/^[-\w]+\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d{4}-\d{2}-\d{2})\s+([\d:]+)\s+(.+)$/)
+  for (const line of raw.trim().split('\n')) {
+    // Only process regular file lines (start with '-')
+    if (!line.trimStart().startsWith('-')) continue
+    // Android ls -la format:
+    // -rw-rw---- 1 u0_a123 sdcard_rw 1234567 2024-06-01 12:34:56 filename.jpg
+    const match = line.match(
+      /^-[\w-]+\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d{4}-\d{2}-\d{2})\s+([\d:]+)\s+(.+)$/
+    )
     if (match) {
       files.push({
         size: parseInt(match[1], 10),
@@ -49,22 +53,24 @@ const AdbService = {
 
   listFolders(adbPath, devicePath = '/sdcard/DCIM') {
     try {
-      const result = execFileSync(adbPath, ['shell', `find ${devicePath} -type d`], {
+      const result = execFileSync(adbPath, ['shell', `find "${devicePath}" -maxdepth 1 -type d`], {
         encoding: 'utf8', timeout: 30000
       })
       const folders = result.trim().split('\n')
-        .filter((f) => f && f.trim() !== devicePath)
+        .map((f) => f.trim())
+        .filter((f) => f && f !== devicePath)
         .map((folderPath) => {
-          const name = path.posix.basename(folderPath.trim())
+          const name = path.posix.basename(folderPath)
           const locked = isProtected(folderPath)
-          return { path: folderPath.trim(), name, locked, status: locked ? 'locked' : 'pending' }
+          return { path: folderPath, name, locked, status: locked ? 'locked' : 'pending' }
         })
 
       const enriched = folders.map((folder) => {
         try {
-          const lsResult = execFileSync(adbPath, ['shell', `ls -la "${folder.path}/" 2>/dev/null`], {
-            encoding: 'utf8', timeout: 15000
-          })
+          const lsResult = execFileSync(
+            adbPath, ['shell', `ls -la "${folder.path}/" 2>/dev/null`],
+            { encoding: 'utf8', timeout: 15000, maxBuffer: 10 * 1024 * 1024 }
+          )
           const files = parseLsOutput(lsResult)
           const totalSize = files.reduce((sum, f) => sum + f.size, 0)
           const dates = files.map((f) => f.date).filter(Boolean).sort()
@@ -92,9 +98,10 @@ const AdbService = {
       return { success: false, error: 'This folder is protected (Kora) and cannot be accessed.' }
     }
     try {
-      const result = execFileSync(adbPath, ['shell', `ls -la "${folderPath}/" 2>/dev/null`], {
-        encoding: 'utf8', timeout: 15000
-      })
+      const result = execFileSync(
+        adbPath, ['shell', `ls -la "${folderPath}/" 2>/dev/null`],
+        { encoding: 'utf8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
+      )
       const files = parseLsOutput(result).map((f) => ({
         ...f,
         remotePath: `${folderPath}/${f.name}`,
@@ -113,7 +120,7 @@ const AdbService = {
       return { success: false, error: 'Protected file — cannot copy.' }
     }
     try {
-      execFileSync(adbPath, ['pull', remotePath, localPath], { encoding: 'utf8', timeout: 120000 })
+      execFileSync(adbPath, ['pull', remotePath, localPath], { encoding: 'utf8', timeout: 300000 })
       return { success: true }
     } catch (err) {
       return { success: false, error: err.message }

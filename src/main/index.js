@@ -4,6 +4,7 @@ const { AdbService } = require('./services/adb')
 const { FileSystemService } = require('./services/fileSystem')
 const { DatabaseService } = require('./services/database')
 const { GooglePhotosService } = require('./services/googlePhotos')
+const { SettingsService } = require('./services/settings')
 
 let mainWindow
 
@@ -25,19 +26,17 @@ function createWindow() {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
-
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
-  // In dev, load from vite dev server; in prod, load built file
   const isDev = process.env.NODE_ENV === 'development'
   if (isDev && process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
     mainWindow.webContents.openDevTools()
   } else {
-    mainWindow.loadFile(join(__dirname, '../../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
 
@@ -52,27 +51,33 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-// ── ADB IPC Handlers ──────────────────────────────────────────────────────────
+// ── Settings IPC ──────────────────────────────────────────────────────────────
+ipcMain.handle('settings:load', () => SettingsService.load())
+ipcMain.handle('settings:save', (_, settings) => SettingsService.save(settings))
+ipcMain.handle('settings:isConfigured', () => SettingsService.isConfigured())
+
+// ── ADB IPC ───────────────────────────────────────────────────────────────────
 ipcMain.handle('adb:checkConnection', (_, adbPath) => AdbService.checkConnection(adbPath))
 ipcMain.handle('adb:listFolders', (_, { adbPath, devicePath }) => AdbService.listFolders(adbPath, devicePath))
 ipcMain.handle('adb:listFiles', (_, { adbPath, folderPath }) => AdbService.listFiles(adbPath, folderPath))
 ipcMain.handle('adb:pullFile', (_, { adbPath, remotePath, localPath }) => AdbService.pullFile(adbPath, remotePath, localPath))
 ipcMain.handle('adb:deleteFile', (_, { adbPath, remotePath }) => AdbService.deleteFile(adbPath, remotePath))
 
-// ── FileSystem IPC Handlers ───────────────────────────────────────────────────
+// ── FileSystem IPC ────────────────────────────────────────────────────────────
 ipcMain.handle('fs:verifyFile', (_, { localPath, expectedSize }) => FileSystemService.verifyFile(localPath, expectedSize))
 ipcMain.handle('fs:ensureDir', (_, dirPath) => FileSystemService.ensureDir(dirPath))
 ipcMain.handle('fs:generateFolderName', (_, { sourceFolder, files, pattern }) => FileSystemService.generateFolderName(sourceFolder, files, pattern))
 ipcMain.handle('fs:appendLog', (_, { logPath, entry }) => FileSystemService.appendLog(logPath, entry))
 
-// ── Database IPC Handlers ─────────────────────────────────────────────────────
+// ── Database IPC ──────────────────────────────────────────────────────────────
 ipcMain.handle('db:init', (_, dbPath) => DatabaseService.init(dbPath))
 ipcMain.handle('db:saveFolders', (_, folders) => DatabaseService.saveFolders(folders))
 ipcMain.handle('db:updateFolderStatus', (_, { folderPath, status }) => DatabaseService.updateFolderStatus(folderPath, status))
 ipcMain.handle('db:getFolders', () => DatabaseService.getFolders())
 ipcMain.handle('db:logAction', (_, entry) => DatabaseService.logAction(entry))
+ipcMain.handle('db:clearFolders', () => DatabaseService.clearFolders())
 
-// ── Google Photos IPC Handlers ────────────────────────────────────────────────
+// ── Google Photos IPC ─────────────────────────────────────────────────────────
 ipcMain.handle('gp:getAuthUrl', (_, creds) => GooglePhotosService.getAuthUrl(creds))
 ipcMain.handle('gp:exchangeCode', async (_, { clientCredentials, code }) => GooglePhotosService.exchangeCode(clientCredentials, code))
 ipcMain.handle('gp:listByDateRange', async (_, { tokens, startDate, endDate }) => GooglePhotosService.listByDateRange(tokens, startDate, endDate))

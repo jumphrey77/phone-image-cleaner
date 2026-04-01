@@ -1,12 +1,12 @@
 {
   "name": "phone-image-cleaner",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Photo cleanup manager for Google Photos and Android devices",
   "main": "src/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "start": "electron .",
+    "start": "electron-vite dev",
     "preview": "electron-vite preview"
   },
   "dependencies": {
