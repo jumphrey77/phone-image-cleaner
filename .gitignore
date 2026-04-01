@@ -1,0 +1,11 @@
+node_modules/
+delete/
+manual-changes/
+needed-updates.txt
+.env
+*.log
+.DS_Store
+
+DELETED/
+*.zip
+/node_modules/

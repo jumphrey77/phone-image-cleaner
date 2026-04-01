@@ -1,0 +1,136 @@
+const { execFileSync } = require('child_process')
+const path = require('path')
+
+const PROTECTED_PATTERNS = ['kora']
+
+function isProtected(filePath) {
+  return PROTECTED_PATTERNS.some((p) => filePath.toLowerCase().includes(p))
+}
+
+function parseLsOutput(raw) {
+  const lines = raw.trim().split('\n')
+  const files = []
+  for (const line of lines) {
+    if (!line || line.startsWith('total') || line.trimStart().startsWith('d')) continue
+    const match = line.match(/^[-\w]+\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d{4}-\d{2}-\d{2})\s+([\d:]+)\s+(.+)$/)
+    if (match) {
+      files.push({
+        size: parseInt(match[1], 10),
+        date: match[2],
+        time: match[3],
+        name: match[4].trim(),
+        type: getFileType(match[4].trim())
+      })
+    }
+  }
+  return files
+}
+
+function getFileType(filename) {
+  const ext = (filename.split('.').pop() || '').toLowerCase()
+  if (['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif'].includes(ext)) return 'photo'
+  if (['mp4', 'mov', 'avi', 'mkv', '3gp'].includes(ext)) return 'video'
+  return 'other'
+}
+
+const AdbService = {
+  checkConnection(adbPath) {
+    try {
+      const result = execFileSync(adbPath, ['devices'], { encoding: 'utf8', timeout: 5000 })
+      const lines = result.trim().split('\n').slice(1)
+      const devices = lines
+        .filter((l) => l.includes('\tdevice'))
+        .map((l) => ({ serial: l.split('\t')[0], status: 'connected' }))
+      return { success: true, devices }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
+  listFolders(adbPath, devicePath = '/sdcard/DCIM') {
+    try {
+      const result = execFileSync(adbPath, ['shell', `find ${devicePath} -type d`], {
+        encoding: 'utf8', timeout: 30000
+      })
+      const folders = result.trim().split('\n')
+        .filter((f) => f && f.trim() !== devicePath)
+        .map((folderPath) => {
+          const name = path.posix.basename(folderPath.trim())
+          const locked = isProtected(folderPath)
+          return { path: folderPath.trim(), name, locked, status: locked ? 'locked' : 'pending' }
+        })
+
+      const enriched = folders.map((folder) => {
+        try {
+          const lsResult = execFileSync(adbPath, ['shell', `ls -la "${folder.path}/" 2>/dev/null`], {
+            encoding: 'utf8', timeout: 15000
+          })
+          const files = parseLsOutput(lsResult)
+          const totalSize = files.reduce((sum, f) => sum + f.size, 0)
+          const dates = files.map((f) => f.date).filter(Boolean).sort()
+          return {
+            ...folder,
+            fileCount: files.length,
+            totalSizeMb: Math.round((totalSize / 1024 / 1024) * 10) / 10,
+            dateMin: dates[0] || null,
+            dateMax: dates[dates.length - 1] || null,
+            hasVideo: files.some((f) => f.type === 'video')
+          }
+        } catch {
+          return { ...folder, fileCount: 0, totalSizeMb: 0, hasVideo: false }
+        }
+      })
+
+      return { success: true, folders: enriched }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
+  listFiles(adbPath, folderPath) {
+    if (isProtected(folderPath)) {
+      return { success: false, error: 'This folder is protected (Kora) and cannot be accessed.' }
+    }
+    try {
+      const result = execFileSync(adbPath, ['shell', `ls -la "${folderPath}/" 2>/dev/null`], {
+        encoding: 'utf8', timeout: 15000
+      })
+      const files = parseLsOutput(result).map((f) => ({
+        ...f,
+        remotePath: `${folderPath}/${f.name}`,
+        onDevice: true,
+        onCloud: null,
+        onPc: false
+      }))
+      return { success: true, files }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
+  pullFile(adbPath, remotePath, localPath) {
+    if (isProtected(remotePath)) {
+      return { success: false, error: 'Protected file — cannot copy.' }
+    }
+    try {
+      execFileSync(adbPath, ['pull', remotePath, localPath], { encoding: 'utf8', timeout: 120000 })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
+  deleteFile(adbPath, remotePath) {
+    if (isProtected(remotePath)) {
+      return { success: false, error: 'Protected file — cannot delete.' }
+    }
+    try {
+      execFileSync(adbPath, ['shell', `rm "${remotePath}"`], { encoding: 'utf8', timeout: 15000 })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }
+}
+
+module.exports = { AdbService }
