@@ -2,12 +2,10 @@ node_modules/
 credentials.txt
 .gitignore
 
-delete/
 manual-changes/
 needed-updates.txt
 .env
 *.log
 .DS_Store
 .git
-DELETED/
 *.zip

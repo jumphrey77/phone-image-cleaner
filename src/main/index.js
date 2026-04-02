@@ -103,6 +103,12 @@ ipcMain.handle('fs:verifyFile', (_, { localPath, expectedSize }) => FileSystemSe
 ipcMain.handle('fs:ensureDir', (_, dirPath) => FileSystemService.ensureDir(dirPath))
 ipcMain.handle('fs:generateFolderName', (_, { sourceFolder, files, pattern }) => FileSystemService.generateFolderName(sourceFolder, files, pattern))
 ipcMain.handle('fs:appendLog', (_, { logPath, entry }) => FileSystemService.appendLog(logPath, entry))
+// Streaming scan — sends 'fs:scanProgress' events back to renderer every 250 files
+ipcMain.handle('fs:scanLocalFiles', (event, { rootPath }) =>
+  FileSystemService.scanLocalFiles(rootPath, (count, lastFile) => {
+    event.sender.send('fs:scanProgress', { count, lastFile })
+  })
+)
 
 // ── Database IPC ──────────────────────────────────────────────────────────────
 ipcMain.handle('db:init', (_, dbPath) => DatabaseService.init(dbPath))
@@ -136,3 +142,30 @@ ipcMain.handle('gp:pollPickerSession', async (_, { tokens, clientId, clientSecre
   GooglePhotosService.pollPickerSession(tokens, clientId, clientSecret, sessionId))
 ipcMain.handle('gp:getPickerItems', async (_, { tokens, clientId, clientSecret, sessionId }) =>
   GooglePhotosService.getPickerItems(tokens, clientId, clientSecret, sessionId))
+
+// Opens the Picker URI in a small BrowserWindow popup (autoclose appended so GP closes it when done)
+ipcMain.handle('gp:openPickerPopup', (_, { pickerUri }) => {
+  try {
+    const popup = new BrowserWindow({
+      width: 920,
+      height: 700,
+      autoHideMenuBar: true,
+      title: 'Google Photos — Select Photos',
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    })
+    // Prevent any secondary windows spawned by the picker from creating new BrowserWindows —
+    // redirect them to the OS default browser instead.
+    popup.webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url)
+      return { action: 'deny' }
+    })
+    popup.loadURL(pickerUri + '/autoclose')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})

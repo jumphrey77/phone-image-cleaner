@@ -27,7 +27,14 @@ const api = {
     verifyFile: (localPath, expectedSize) => ipcRenderer.invoke('fs:verifyFile', { localPath, expectedSize }),
     ensureDir: (dirPath) => ipcRenderer.invoke('fs:ensureDir', dirPath),
     generateFolderName: (sourceFolder, files, pattern) => ipcRenderer.invoke('fs:generateFolderName', { sourceFolder, files, pattern }),
-    appendLog: (logPath, entry) => ipcRenderer.invoke('fs:appendLog', { logPath, entry })
+    appendLog: (logPath, entry) => ipcRenderer.invoke('fs:appendLog', { logPath, entry }),
+    scanLocalFiles: (rootPath) => ipcRenderer.invoke('fs:scanLocalFiles', { rootPath }),
+    // Returns an unsubscribe function — call it in useEffect cleanup
+    onScanProgress: (cb) => {
+      const handler = (_, data) => cb(data)
+      ipcRenderer.on('fs:scanProgress', handler)
+      return () => ipcRenderer.removeListener('fs:scanProgress', handler)
+    }
   },
   db: {
     init: (dbPath) => ipcRenderer.invoke('db:init', dbPath),
@@ -49,7 +56,9 @@ const api = {
     pollPickerSession: (tokens, clientId, clientSecret, sessionId) =>
       ipcRenderer.invoke('gp:pollPickerSession', { tokens, clientId, clientSecret, sessionId }),
     getPickerItems: (tokens, clientId, clientSecret, sessionId) =>
-      ipcRenderer.invoke('gp:getPickerItems', { tokens, clientId, clientSecret, sessionId })
+      ipcRenderer.invoke('gp:getPickerItems', { tokens, clientId, clientSecret, sessionId }),
+    openPickerPopup: (pickerUri) =>
+      ipcRenderer.invoke('gp:openPickerPopup', { pickerUri })
   }
 }
 

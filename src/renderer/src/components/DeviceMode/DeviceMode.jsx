@@ -72,7 +72,12 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
     const nameResult = await window.api.fs.generateFolderName(folder.path, result.files, settings.folderPattern)
     if (nameResult.success) setSuggestedName(nameResult.folderName)
 
-    setFiles(result.files)
+    // Annotate each file with onPc if PC scan is available
+    const enriched = result.files.map((f) => ({
+      ...f,
+      onPc: localFileSet ? localFileSet.has(f.name.toLowerCase()) : null
+    }))
+    setFiles(enriched)
     setLoadingFiles(false)
 
     // Update window title to show selected folder
@@ -133,6 +138,44 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
     const result = await window.api.adb.switchToMtp(settings.adbPath)
     if (result.success) addLog({ action: 'MTP', result: '✅ MTP mode activated — check device notification' })
     else addLog({ action: 'MTP', result: 'Failed', error: result.error })
+  }
+
+  const scanLocalFiles = async () => {
+    if (!settings?.localPicturesRoot) {
+      addLog({ action: 'PC SCAN', result: '⚠ Local Pictures Root not set in Settings' })
+      return
+    }
+    setScanningPc(true)
+    setScanCount(0)
+    setScanLog([])
+    setScanLogOpen(true)   // auto-open scan activity panel when scan starts
+    addLog({ action: 'PC SCAN', result: `Scanning ${settings.localPicturesRoot}…` })
+
+    // Subscribe to streaming progress events from main process
+    const unsub = window.api.fs.onScanProgress(({ count, lastFile }) => {
+      setScanCount(count)
+      setScanLog((prev) => {
+        const next = [...prev, lastFile]
+        return next.length > 200 ? next.slice(-200) : next   // keep last 200 entries
+      })
+    })
+
+    const result = await window.api.fs.scanLocalFiles(settings.localPicturesRoot)
+    unsub()   // clean up listener
+
+    if (result.success) {
+      const fileSet = new Set(result.filenames)
+      setLocalFileSet(fileSet)
+      setScanCount(result.count)
+      addLog({ action: 'PC SCAN', result: `Done — ${result.count.toLocaleString()} files indexed. PC column now active.` })
+      // Re-enrich currently loaded files if a folder is open
+      if (files.length > 0) {
+        setFiles((prev) => prev.map((f) => ({ ...f, onPc: fileSet.has(f.name.toLowerCase()) })))
+      }
+    } else {
+      addLog({ action: 'PC SCAN', result: 'Scan failed', error: result.error })
+    }
+    setScanningPc(false)
   }
 
   const deleteEmptyFolder = async (folder) => {
@@ -262,6 +305,13 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
   const [pickerItems, setPickerItems] = useState([])
   const [pickerMonth, setPickerMonth] = useState('')   // YYYY-MM format
 
+  // PC file scan state — null = not yet scanned, Set = lowercased filenames from localPicturesRoot
+  const [localFileSet, setLocalFileSet] = useState(null)
+  const [scanningPc, setScanningPc] = useState(false)
+  const [scanCount, setScanCount] = useState(0)           // live file count during scan
+  const [scanLog, setScanLog] = useState([])              // recent filenames scrolling during scan
+  const [scanLogOpen, setScanLogOpen] = useState(false)   // collapsible scan log panel
+
   const openPicker = async () => {
     if (!gpReady) {
       addLog({ action: 'PICKER', result: '⚠ Connect Google Photos in Settings first' })
@@ -294,10 +344,10 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
       return
     }
 
-    // Step 2: Open picker in browser
-    await window.api.shell.openExternal(session.pickerUri)
-    setPickerStatus('⏳ Select photos in browser, then wait…')
-    addLog({ action: 'PICKER', result: `Picker opened — select photos and close/finish in browser` })
+    // Step 2: Open picker in a popup window (autoclose is appended inside the IPC handler)
+    await window.api.gp.openPickerPopup(session.pickerUri)
+    setPickerStatus('⏳ Select photos in popup, then click Done…')
+    addLog({ action: 'PICKER', result: `Picker opened in popup — select photos and click Done` })
 
     // Step 3: Poll until done
     const poll = await window.api.gp.pollPickerSession(
@@ -338,6 +388,18 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
     items.forEach((item) => {
       addLog({ action: 'PICKER ITEM', filename: item.filename, result: `${item.date} | ${item.type} | ID: ${item.id.substring(0, 20)}…` })
     })
+
+    // Cross-reference picker results against currently loaded files → light up Cloud column ✅
+    if (files.length > 0 && items.length > 0) {
+      const pickerNames = new Set(items.map((i) => i.filename.toLowerCase()))
+      setFiles((prev) =>
+        prev.map((f) => pickerNames.has(f.name.toLowerCase()) ? { ...f, onCloud: true } : f)
+      )
+      const matched = files.filter((f) => pickerNames.has(f.name.toLowerCase())).length
+      if (matched > 0) {
+        addLog({ action: 'PICKER', result: `☁ Marked ${matched} file${matched !== 1 ? 's' : ''} as In Cloud in current folder view` })
+      }
+    }
 
     // After-picker action
     const doneAction = settings?.gpPickerDoneAction || 'close'
@@ -383,14 +445,52 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
               </button>
             </div>
           )}
+          <button
+            className={`btn-ghost${localFileSet ? ' btn-pc-active' : ''}`}
+            onClick={scanLocalFiles}
+            disabled={scanningPc}
+            title={localFileSet ? `PC scan active — ${localFileSet.size.toLocaleString()} files indexed. Click to re-scan.` : 'Scan local PC pictures folder to show which phone files are already on PC'}
+          >
+            {scanningPc
+              ? `⏳ Scanning PC… ${scanCount > 0 ? scanCount.toLocaleString() : ''}`
+              : localFileSet
+                ? `🖥 PC ✓ ${localFileSet.size.toLocaleString()}`
+                : '🖥 Scan PC'}
+          </button>
+          {(scanningPc || scanLog.length > 0) && (
+            <button
+              className="btn-ghost"
+              onClick={() => setScanLogOpen((v) => !v)}
+              title="Toggle scan activity log"
+              style={{ fontSize: 11, padding: '4px 8px' }}
+            >
+              {scanLogOpen ? '▲ Activity' : '▼ Activity'}
+            </button>
+          )}
           <button className="btn-ghost" onClick={switchToMtp} title="Switch phone to MTP file transfer mode">
             📲 MTP
           </button>
           <button className="btn-ghost" onClick={scanDevice} disabled={loading}>
-            {loading ? '⏳ Loading…' : '↻ Refresh'}
+            {loading ? '⏳ Loading…' : '↻ Scan Device'}
           </button>
         </div>
       </div>
+
+      {/* Scan Activity panel — collapsible, auto-opens during PC scan, shows live filenames */}
+      {scanLogOpen && scanLog.length > 0 && (
+        <div className="scan-activity-panel">
+          <div className="scan-activity-header">
+            <span>🖥 PC Scan Activity {scanningPc ? `— ${scanCount.toLocaleString()} files…` : `— Complete (${(localFileSet?.size || scanCount).toLocaleString()} files)`}</span>
+            <button className="btn-ghost" onClick={() => setScanLogOpen(false)} style={{ fontSize: 11, padding: '2px 8px' }}>✕ Close</button>
+          </div>
+          <div className="scan-activity-log" ref={(el) => { if (el) el.scrollTop = el.scrollHeight }}>
+            {scanLog.map((name, i) => (
+              <div key={i} className="scan-activity-line">{name}</div>
+            ))}
+            {scanningPc && <div className="scan-activity-line scan-activity-pulse">⏳ scanning…</div>}
+          </div>
+        </div>
+      )}
 
       <div className="dm-body">
         <FolderList

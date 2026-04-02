@@ -8,6 +8,7 @@ export default function ActionPanel({
   const [activeTab, setActiveTab] = useState('pc')
   const [renameValue, setRenameValue] = useState('')
   const [pcAction, setPcAction] = useState('copy-to-pc')
+  const [deviceAction, setDeviceAction] = useState('leave-alone')
 
   // Sync rename field when folder or suggestedName changes
   useEffect(() => {
@@ -56,9 +57,38 @@ export default function ActionPanel({
     onExecute(pcAction, suggestedName || folder.name)
   }
 
-  const handleRename = () => {
-    if (!renameValue.trim() || renameValue.trim() === folder.name) return
-    onRenameFolder(folder, renameValue.trim())
+  const handleDeviceExecute = () => {
+    if (executing) return
+    if (deviceAction === 'rename') {
+      if (!renameValue.trim() || renameValue.trim() === folder.name) return
+      onRenameFolder(folder, renameValue.trim())
+    } else if (deviceAction === 'delete-empty') {
+      onDeleteAllEmpty()
+    } else {
+      // leave-alone, skip
+      onExecute(deviceAction, folder.name)
+    }
+  }
+
+  const deviceExecuteLabel = () => {
+    if (executing) return '⏳ Working…'
+    if (whatIf) {
+      if (deviceAction === 'rename') return '▶ Simulate Rename'
+      if (deviceAction === 'delete-empty') return '▶ Simulate Delete Empty'
+      return '▶ Simulate'
+    }
+    if (deviceAction === 'rename') return '✏ Rename on Device'
+    if (deviceAction === 'delete-empty') return `🗑 Delete ${emptyFolderCount} Empty Folder${emptyFolderCount !== 1 ? 's' : ''}`
+    if (deviceAction === 'leave-alone') return '🔒 Mark Leave Alone'
+    if (deviceAction === 'skip') return '⏭ Mark Skip'
+    return '▶ Execute'
+  }
+
+  const deviceExecuteDisabled = () => {
+    if (executing) return true
+    if (deviceAction === 'rename') return !renameValue.trim() || renameValue.trim() === folder.name
+    if (deviceAction === 'delete-empty') return emptyFolderCount === 0
+    return false
   }
 
   return (
@@ -74,52 +104,71 @@ export default function ActionPanel({
       {/* ── DEVICE TAB ────────────────────────────────────────────────────── */}
       {activeTab === 'device' && (
         <div className="ap-tab-body">
-          {/* Rename Folder */}
           <div className="ap-section">
-            <div className="ap-section-label">✏ Rename Folder</div>
-            <div className="ap-folder-name">
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                placeholder="YYYY-MM-DD Title"
-              />
-              <small>Pattern: date from files + folder name</small>
-            </div>
-            <button
-              className="btn-ghost btn-block"
-              onClick={handleRename}
-              disabled={executing || !renameValue.trim() || renameValue.trim() === folder.name}
-            >
-              ✏ Rename on Device
-            </button>
-          </div>
-
-          {/* Delete All Empty */}
-          {emptyFolderCount > 0 && (
-            <div className="ap-section">
-              <div className="ap-section-label">🗑 Bulk Clean</div>
-              <button className="btn-danger-ghost btn-block" onClick={onDeleteAllEmpty} disabled={executing}>
-                Delete All Empty Folders ({emptyFolderCount})
-              </button>
-              <small>{emptyFolderCount} empty folder{emptyFolderCount !== 1 ? 's' : ''} on device</small>
-            </div>
-          )}
-
-          {/* Mark status */}
-          <div className="ap-section">
-            <div className="ap-section-label">📌 Mark Folder</div>
+            <div className="ap-section-label">📱 Device Actions</div>
             <div className="ap-actions">
-              <div className="ap-action" onClick={() => !executing && onExecute('leave-alone', folder.name)}>
-                <div className="ap-action-label">🔒 Leave Alone</div>
-                <div className="ap-action-desc">Mark as protected — never touched</div>
+
+              {/* Rename */}
+              <div
+                className={`ap-action ${deviceAction === 'rename' ? 'selected' : ''}`}
+                onClick={() => setDeviceAction('rename')}
+              >
+                <div className="ap-action-label">✏ Rename Folder</div>
+                <div className="ap-action-desc">Rename on device to date + title pattern</div>
+                {deviceAction === 'rename' && (
+                  <div className="ap-inline-input" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      placeholder="YYYY-MM-DD Title"
+                      autoFocus
+                    />
+                    <small>Auto-filled from file dates — edit if needed</small>
+                  </div>
+                )}
               </div>
-              <div className="ap-action" onClick={() => !executing && onExecute('skip', folder.name)}>
+
+              {/* Delete All Empty */}
+              <div
+                className={`ap-action ${deviceAction === 'delete-empty' ? 'selected' : ''}${emptyFolderCount === 0 ? ' disabled' : ''}`}
+                onClick={() => emptyFolderCount > 0 && setDeviceAction('delete-empty')}
+              >
+                <div className="ap-action-label">🗑 Delete All Empty Folders</div>
+                <div className="ap-action-desc">
+                  {emptyFolderCount > 0
+                    ? `Remove ${emptyFolderCount} empty folder${emptyFolderCount !== 1 ? 's' : ''} from device`
+                    : 'No empty folders detected'}
+                </div>
+              </div>
+
+              {/* Leave Alone */}
+              <div
+                className={`ap-action ${deviceAction === 'leave-alone' ? 'selected' : ''}`}
+                onClick={() => setDeviceAction('leave-alone')}
+              >
+                <div className="ap-action-label">🔒 Leave Alone</div>
+                <div className="ap-action-desc">Mark as protected — never touched by this tool</div>
+              </div>
+
+              {/* Skip */}
+              <div
+                className={`ap-action ${deviceAction === 'skip' ? 'selected' : ''}`}
+                onClick={() => setDeviceAction('skip')}
+              >
                 <div className="ap-action-label">⏭ Skip</div>
                 <div className="ap-action-desc">Come back to this folder later</div>
               </div>
             </div>
           </div>
+
+          <button
+            className={`btn-primary btn-execute ${whatIf ? 'btn-whatif-exec' : ''} ${deviceAction === 'delete-empty' ? 'btn-execute-danger' : ''}`}
+            onClick={handleDeviceExecute}
+            disabled={deviceExecuteDisabled()}
+          >
+            {deviceExecuteLabel()}
+          </button>
         </div>
       )}
 

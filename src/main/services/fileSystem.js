@@ -46,6 +46,32 @@ const FileSystemService = {
     } catch (err) {
       return { success: false, error: err.message }
     }
+  },
+
+  // Recursively scan rootPath and return all filenames (lowercased) for PC-presence lookup.
+  // onProgress(count, lastFilename) is called every 250 files so the renderer can stream updates.
+  scanLocalFiles(rootPath, onProgress) {
+    try {
+      const filenames = []
+      const scan = (dir) => {
+        let entries
+        try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            scan(path.join(dir, entry.name))
+          } else {
+            filenames.push(entry.name.toLowerCase())
+            if (onProgress && filenames.length % 250 === 0) {
+              onProgress(filenames.length, entry.name)
+            }
+          }
+        }
+      }
+      scan(rootPath)
+      return { success: true, count: filenames.length, filenames }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
   }
 }
 

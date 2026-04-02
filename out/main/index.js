@@ -79,10 +79,18 @@ ipcMain.handle("adb:listFiles", (_, { adbPath, folderPath }) => AdbService.listF
 ipcMain.handle("adb:pullFile", (_, { adbPath, remotePath, localPath }) => AdbService.pullFile(adbPath, remotePath, localPath, getLockedKeywords()));
 ipcMain.handle("adb:deleteFile", (_, { adbPath, remotePath }) => AdbService.deleteFile(adbPath, remotePath, getLockedKeywords()));
 ipcMain.handle("adb:deleteFolder", (_, { adbPath, folderPath }) => AdbService.deleteFolder(adbPath, folderPath, getLockedKeywords()));
+ipcMain.handle("adb:renameFolder", (_, { adbPath, oldPath, newPath }) => AdbService.renameFolder(adbPath, oldPath, newPath, getLockedKeywords()));
+ipcMain.handle("adb:switchToMtp", (_, { adbPath }) => AdbService.switchToMtp(adbPath));
 ipcMain.handle("fs:verifyFile", (_, { localPath, expectedSize }) => FileSystemService.verifyFile(localPath, expectedSize));
 ipcMain.handle("fs:ensureDir", (_, dirPath) => FileSystemService.ensureDir(dirPath));
 ipcMain.handle("fs:generateFolderName", (_, { sourceFolder, files, pattern }) => FileSystemService.generateFolderName(sourceFolder, files, pattern));
 ipcMain.handle("fs:appendLog", (_, { logPath, entry }) => FileSystemService.appendLog(logPath, entry));
+ipcMain.handle(
+  "fs:scanLocalFiles",
+  (event, { rootPath }) => FileSystemService.scanLocalFiles(rootPath, (count, lastFile) => {
+    event.sender.send("fs:scanProgress", { count, lastFile });
+  })
+);
 ipcMain.handle("db:init", (_, dbPath) => DatabaseService.init(dbPath));
 ipcMain.handle("db:saveFolders", (_, folders) => DatabaseService.saveFolders(folders));
 ipcMain.handle("db:updateFolderStatus", (_, { folderPath, status }) => DatabaseService.updateFolderStatus(folderPath, status));
@@ -101,3 +109,26 @@ ipcMain.handle("gp:batchDelete", async (_, { tokens, mediaItemIds, clientId, cli
 ipcMain.handle("gp:createPickerSession", async (_, { tokens, clientId, clientSecret, dateRange }) => GooglePhotosService.createPickerSession(tokens, clientId, clientSecret, dateRange || null));
 ipcMain.handle("gp:pollPickerSession", async (_, { tokens, clientId, clientSecret, sessionId }) => GooglePhotosService.pollPickerSession(tokens, clientId, clientSecret, sessionId));
 ipcMain.handle("gp:getPickerItems", async (_, { tokens, clientId, clientSecret, sessionId }) => GooglePhotosService.getPickerItems(tokens, clientId, clientSecret, sessionId));
+ipcMain.handle("gp:openPickerPopup", (_, { pickerUri }) => {
+  try {
+    const popup = new BrowserWindow({
+      width: 920,
+      height: 700,
+      autoHideMenuBar: true,
+      title: "Google Photos — Select Photos",
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false
+      }
+    });
+    popup.webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url);
+      return { action: "deny" };
+    });
+    popup.loadURL(pickerUri + "/autoclose");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
