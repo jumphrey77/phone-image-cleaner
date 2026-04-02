@@ -6,7 +6,15 @@ function formatSize(bytes) {
 
 const TYPE_ICONS = { photo: '📷', video: '📹', other: '📄' }
 
-export default function FolderDetail({ folder, files, loading }) {
+function CloudCell({ value, gpReady, checking }) {
+  if (checking) return <span className="cloud-checking">…</span>
+  if (!gpReady) return <span className="cloud-na">—</span>
+  if (value === true) return <span className="cloud-yes">✅</span>
+  if (value === false) return <span className="cloud-no">❌</span>
+  return <span className="cloud-na">—</span>
+}
+
+export default function FolderDetail({ folder, files, loading, checkingCloud, gpReady }) {
   if (!folder) {
     return (
       <div className="folder-detail empty">
@@ -18,12 +26,13 @@ export default function FolderDetail({ folder, files, loading }) {
   if (loading) {
     return (
       <div className="folder-detail loading">
-        <div className="fd-loading">Loading files from {folder.name}...</div>
+        <div className="fd-loading">Loading files from {folder.name}…</div>
       </div>
     )
   }
 
   const totalSize = files.reduce((sum, f) => sum + f.size, 0)
+  const cloudCount = files.filter((f) => f.onCloud === true).length
 
   return (
     <div className="folder-detail">
@@ -33,6 +42,12 @@ export default function FolderDetail({ folder, files, loading }) {
           <span>{files.length} files</span>
           <span>{formatSize(totalSize)}</span>
           {folder.dateMin && <span>{folder.dateMin} → {folder.dateMax}</span>}
+          {gpReady && !checkingCloud && files.length > 0 && (
+            <span className={cloudCount === files.length ? 'cloud-badge-all' : 'cloud-badge-partial'}>
+              ☁ {cloudCount}/{files.length} in Google Photos
+            </span>
+          )}
+          {checkingCloud && <span className="cloud-badge-checking">☁ Checking…</span>}
         </div>
       </div>
 
@@ -45,7 +60,7 @@ export default function FolderDetail({ folder, files, loading }) {
               <th>Size</th>
               <th>Date</th>
               <th>Time</th>
-              <th>Cloud</th>
+              <th title={gpReady ? 'In Google Photos' : 'Connect Google Photos in Settings'}>Cloud</th>
               <th>PC</th>
             </tr>
           </thead>
@@ -57,8 +72,10 @@ export default function FolderDetail({ folder, files, loading }) {
                 <td>{formatSize(file.size)}</td>
                 <td>{file.date}</td>
                 <td>{file.time}</td>
-                <td>{file.onCloud === null ? '—' : file.onCloud ? '✅' : '❌'}</td>
-                <td>{file.onPc ? '✅' : '❌'}</td>
+                <td>
+                  <CloudCell value={file.onCloud} gpReady={gpReady} checking={checkingCloud} />
+                </td>
+                <td>{file.onPc === null ? '—' : file.onPc ? '✅' : '❌'}</td>
               </tr>
             ))}
           </tbody>

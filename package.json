@@ -1,6 +1,6 @@
 {
   "name": "phone-image-cleaner",
-  "version": "1.2.0",
+  "version": "1.11.0",
   "description": "Photo cleanup manager for Google Photos and Android devices",
   "main": "src/main/index.js",
   "scripts": {

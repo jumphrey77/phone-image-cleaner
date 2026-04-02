@@ -9,12 +9,14 @@ function isProtected(filePath) {
 
 function parseLsOutput(raw) {
   const files = []
-  for (const line of raw.trim().split('\n')) {
+  // Split on \r\n or \n — ADB on Windows often produces CRLF output
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim()
     // Only process regular file lines (start with '-')
-    if (!line.trimStart().startsWith('-')) continue
+    if (!trimmed.startsWith('-')) continue
     // Android ls -la format:
     // -rw-rw---- 1 u0_a123 sdcard_rw 1234567 2024-06-01 12:34:56 filename.jpg
-    const match = line.match(
+    const match = trimmed.match(
       /^-[\w-]+\s+\d+\s+\S+\s+\S+\s+(\d+)\s+(\d{4}-\d{2}-\d{2})\s+([\d:]+)\s+(.+)$/
     )
     if (match) {
@@ -106,8 +108,8 @@ const AdbService = {
         ...f,
         remotePath: `${folderPath}/${f.name}`,
         onDevice: true,
-        onCloud: null,
-        onPc: false
+        onCloud: null,  // null = unknown (requires Google Photos API — Phase 2)
+        onPc: null      // null = unknown (local check not yet implemented)
       }))
       return { success: true, files }
     } catch (err) {
@@ -133,6 +135,19 @@ const AdbService = {
     }
     try {
       execFileSync(adbPath, ['shell', `rm "${remotePath}"`], { encoding: 'utf8', timeout: 15000 })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
+  deleteFolder(adbPath, folderPath) {
+    if (isProtected(folderPath)) {
+      return { success: false, error: 'Protected folder — cannot delete.' }
+    }
+    try {
+      // rmdir only removes truly empty directories — safe to use
+      execFileSync(adbPath, ['shell', `rmdir "${folderPath}"`], { encoding: 'utf8', timeout: 15000 })
       return { success: true }
     } catch (err) {
       return { success: false, error: err.message }

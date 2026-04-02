@@ -6,6 +6,16 @@ export default function SetupScreen({ settings, onSettingsChange, onConnect, add
 
   const update = (key, value) => onSettingsChange((prev) => ({ ...prev, [key]: value }))
 
+  const browseFile = async (key) => {
+    const chosen = await window.api.dialog.openFile()
+    if (chosen) update(key, chosen)
+  }
+
+  const browseFolder = async (key) => {
+    const chosen = await window.api.dialog.openFolder()
+    if (chosen) update(key, chosen)
+  }
+
   const handleConnect = async () => {
     setConnecting(true)
     setStatus('Checking ADB connection...')
@@ -16,7 +26,7 @@ export default function SetupScreen({ settings, onSettingsChange, onConnect, add
         setStatus(`✅ Connected: ${device.serial}`)
         addLog({ action: 'CONNECT', result: `Device ${device.serial} connected` })
         await window.api.db.init(settings.localPicturesRoot)
-        setTimeout(() => onConnect(), 800)
+        setTimeout(() => onConnect(settings), 800)
       } else {
         setStatus('❌ No device found. Check USB Debugging is enabled and cable is connected.')
         addLog({ action: 'CONNECT', result: 'Failed — no device', error: result.error })
@@ -35,12 +45,15 @@ export default function SetupScreen({ settings, onSettingsChange, onConnect, add
 
         <div className="form-group">
           <label>ADB Path</label>
-          <input
-            type="text"
-            value={settings.adbPath}
-            onChange={(e) => update('adbPath', e.target.value)}
-            placeholder="D:\Apps\Android Platform Tools\platform-tools\adb.exe"
-          />
+          <div className="input-browse">
+            <input
+              type="text"
+              value={settings.adbPath}
+              onChange={(e) => update('adbPath', e.target.value)}
+              placeholder="D:\Apps\Android Platform Tools\platform-tools\adb.exe"
+            />
+            <button className="btn-browse" onClick={() => browseFile('adbPath')}>Browse</button>
+          </div>
         </div>
 
         <div className="form-group">
@@ -51,16 +64,20 @@ export default function SetupScreen({ settings, onSettingsChange, onConnect, add
             onChange={(e) => update('devicePath', e.target.value)}
             placeholder="/sdcard/DCIM"
           />
+          <small>Android path — type directly</small>
         </div>
 
         <div className="form-group">
           <label>Local Pictures Root</label>
-          <input
-            type="text"
-            value={settings.localPicturesRoot}
-            onChange={(e) => update('localPicturesRoot', e.target.value)}
-            placeholder="D:\OneDrive\...\Pictures"
-          />
+          <div className="input-browse">
+            <input
+              type="text"
+              value={settings.localPicturesRoot}
+              onChange={(e) => update('localPicturesRoot', e.target.value)}
+              placeholder="D:\OneDrive\...\Pictures"
+            />
+            <button className="btn-browse" onClick={() => browseFolder('localPicturesRoot')}>Browse</button>
+          </div>
         </div>
 
         <div className="form-group">

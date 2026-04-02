@@ -1,6 +1,13 @@
 "use strict";
 const { contextBridge, ipcRenderer } = require("electron");
 const api = {
+  dialog: {
+    openFolder: () => ipcRenderer.invoke("dialog:openFolder"),
+    openFile: () => ipcRenderer.invoke("dialog:openFile")
+  },
+  shell: {
+    openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url)
+  },
   settings: {
     load: () => ipcRenderer.invoke("settings:load"),
     save: (settings) => ipcRenderer.invoke("settings:save", settings),
@@ -11,7 +18,8 @@ const api = {
     listFolders: (adbPath, devicePath) => ipcRenderer.invoke("adb:listFolders", { adbPath, devicePath }),
     listFiles: (adbPath, folderPath) => ipcRenderer.invoke("adb:listFiles", { adbPath, folderPath }),
     pullFile: (adbPath, remotePath, localPath) => ipcRenderer.invoke("adb:pullFile", { adbPath, remotePath, localPath }),
-    deleteFile: (adbPath, remotePath) => ipcRenderer.invoke("adb:deleteFile", { adbPath, remotePath })
+    deleteFile: (adbPath, remotePath) => ipcRenderer.invoke("adb:deleteFile", { adbPath, remotePath }),
+    deleteFolder: (adbPath, folderPath) => ipcRenderer.invoke("adb:deleteFolder", { adbPath, folderPath })
   },
   fs: {
     verifyFile: (localPath, expectedSize) => ipcRenderer.invoke("fs:verifyFile", { localPath, expectedSize }),
@@ -28,10 +36,13 @@ const api = {
     logAction: (entry) => ipcRenderer.invoke("db:logAction", entry)
   },
   gp: {
-    getAuthUrl: (creds) => ipcRenderer.invoke("gp:getAuthUrl", creds),
-    exchangeCode: (creds, code) => ipcRenderer.invoke("gp:exchangeCode", { clientCredentials: creds, code }),
-    listByDateRange: (tokens, start, end) => ipcRenderer.invoke("gp:listByDateRange", { tokens, startDate: start, endDate: end }),
-    deleteItems: (tokens, ids) => ipcRenderer.invoke("gp:deleteItems", { tokens, mediaItemIds: ids })
+    startOAuth: (clientId, clientSecret) => ipcRenderer.invoke("gp:startOAuth", { clientId, clientSecret }),
+    checkAuth: (tokens, clientId, clientSecret) => ipcRenderer.invoke("gp:checkAuth", { tokens, clientId, clientSecret }),
+    listByDateRange: (tokens, start, end, clientId, clientSecret) => ipcRenderer.invoke("gp:listByDateRange", { tokens, startDate: start, endDate: end, clientId, clientSecret }),
+    batchDelete: (tokens, mediaItemIds, clientId, clientSecret) => ipcRenderer.invoke("gp:batchDelete", { tokens, mediaItemIds, clientId, clientSecret }),
+    createPickerSession: (tokens, clientId, clientSecret) => ipcRenderer.invoke("gp:createPickerSession", { tokens, clientId, clientSecret }),
+    pollPickerSession: (tokens, clientId, clientSecret, sessionId) => ipcRenderer.invoke("gp:pollPickerSession", { tokens, clientId, clientSecret, sessionId }),
+    getPickerItems: (tokens, clientId, clientSecret, sessionId) => ipcRenderer.invoke("gp:getPickerItems", { tokens, clientId, clientSecret, sessionId })
   }
 };
 contextBridge.exposeInMainWorld("api", api);

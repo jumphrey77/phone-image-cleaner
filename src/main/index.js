@@ -1,4 +1,4 @@
-const { app, shell, BrowserWindow, ipcMain } = require('electron')
+const { app, shell, BrowserWindow, ipcMain, dialog } = require('electron')
 const { join } = require('path')
 const { AdbService } = require('./services/adb')
 const { FileSystemService } = require('./services/fileSystem')
@@ -51,6 +51,27 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+// ── Shell IPC ─────────────────────────────────────────────────────────────────
+ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url))
+
+// ── Dialog IPC ────────────────────────────────────────────────────────────────
+ipcMain.handle('dialog:openFolder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Folder',
+    properties: ['openDirectory']
+  })
+  return result.canceled ? null : result.filePaths[0]
+})
+
+ipcMain.handle('dialog:openFile', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select ADB Executable',
+    properties: ['openFile'],
+    filters: [{ name: 'Executables', extensions: ['exe', '*'] }]
+  })
+  return result.canceled ? null : result.filePaths[0]
+})
+
 // ── Settings IPC ──────────────────────────────────────────────────────────────
 ipcMain.handle('settings:load', () => SettingsService.load())
 ipcMain.handle('settings:save', (_, settings) => SettingsService.save(settings))
@@ -62,6 +83,7 @@ ipcMain.handle('adb:listFolders', (_, { adbPath, devicePath }) => AdbService.lis
 ipcMain.handle('adb:listFiles', (_, { adbPath, folderPath }) => AdbService.listFiles(adbPath, folderPath))
 ipcMain.handle('adb:pullFile', (_, { adbPath, remotePath, localPath }) => AdbService.pullFile(adbPath, remotePath, localPath))
 ipcMain.handle('adb:deleteFile', (_, { adbPath, remotePath }) => AdbService.deleteFile(adbPath, remotePath))
+ipcMain.handle('adb:deleteFolder', (_, { adbPath, folderPath }) => AdbService.deleteFolder(adbPath, folderPath))
 
 // ── FileSystem IPC ────────────────────────────────────────────────────────────
 ipcMain.handle('fs:verifyFile', (_, { localPath, expectedSize }) => FileSystemService.verifyFile(localPath, expectedSize))
@@ -78,7 +100,26 @@ ipcMain.handle('db:logAction', (_, entry) => DatabaseService.logAction(entry))
 ipcMain.handle('db:clearFolders', () => DatabaseService.clearFolders())
 
 // ── Google Photos IPC ─────────────────────────────────────────────────────────
-ipcMain.handle('gp:getAuthUrl', (_, creds) => GooglePhotosService.getAuthUrl(creds))
-ipcMain.handle('gp:exchangeCode', async (_, { clientCredentials, code }) => GooglePhotosService.exchangeCode(clientCredentials, code))
-ipcMain.handle('gp:listByDateRange', async (_, { tokens, startDate, endDate }) => GooglePhotosService.listByDateRange(tokens, startDate, endDate))
-ipcMain.handle('gp:deleteItems', async (_, { tokens, mediaItemIds }) => GooglePhotosService.deleteItems(tokens, mediaItemIds))
+// Starts local OAuth server, opens browser, waits for callback, returns tokens
+ipcMain.handle('gp:startOAuth', async (_, { clientId, clientSecret }) => {
+  const prep = GooglePhotosService.prepareOAuth(clientId, clientSecret)
+  if (!prep.success) return prep
+  // Open browser for user to sign in
+  shell.openExternal(prep.authUrl)
+  // Wait for the local server to receive the callback (up to 5 min)
+  return await prep.tokenPromise
+})
+ipcMain.handle('gp:checkAuth', async (_, { tokens, clientId, clientSecret }) =>
+  GooglePhotosService.checkAuth(tokens, clientId, clientSecret))
+ipcMain.handle('gp:listByDateRange', async (_, { tokens, startDate, endDate, clientId, clientSecret }) =>
+  GooglePhotosService.listByDateRange(tokens, startDate, endDate, clientId, clientSecret))
+ipcMain.handle('gp:batchDelete', async (_, { tokens, mediaItemIds, clientId, clientSecret }) =>
+  GooglePhotosService.batchDelete(tokens, mediaItemIds, clientId, clientSecret))
+
+// ── Picker API IPC ────────────────────────────────────────────────────────────
+ipcMain.handle('gp:createPickerSession', async (_, { tokens, clientId, clientSecret }) =>
+  GooglePhotosService.createPickerSession(tokens, clientId, clientSecret))
+ipcMain.handle('gp:pollPickerSession', async (_, { tokens, clientId, clientSecret, sessionId }) =>
+  GooglePhotosService.pollPickerSession(tokens, clientId, clientSecret, sessionId))
+ipcMain.handle('gp:getPickerItems', async (_, { tokens, clientId, clientSecret, sessionId }) =>
+  GooglePhotosService.getPickerItems(tokens, clientId, clientSecret, sessionId))

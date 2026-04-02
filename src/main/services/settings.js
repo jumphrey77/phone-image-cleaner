@@ -8,7 +8,11 @@ const DEFAULT_SETTINGS = {
   goalGb: 15,
   startingGb: 25.55,
   whatIfMode: false,
-  configured: false
+  configured: false,
+  // Google Photos OAuth — user sets these from Google Cloud Console
+  gpClientId: '',
+  gpClientSecret: '',
+  gpTokens: null   // { access_token, refresh_token, expiry_date, ... }
 }
 
 let store = null
