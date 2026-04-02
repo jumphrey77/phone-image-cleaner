@@ -42,8 +42,8 @@ const api = {
       ipcRenderer.invoke('gp:listByDateRange', { tokens, startDate: start, endDate: end, clientId, clientSecret }),
     batchDelete: (tokens, mediaItemIds, clientId, clientSecret) =>
       ipcRenderer.invoke('gp:batchDelete', { tokens, mediaItemIds, clientId, clientSecret }),
-    createPickerSession: (tokens, clientId, clientSecret) =>
-      ipcRenderer.invoke('gp:createPickerSession', { tokens, clientId, clientSecret }),
+    createPickerSession: (tokens, clientId, clientSecret, dateRange) =>
+      ipcRenderer.invoke('gp:createPickerSession', { tokens, clientId, clientSecret, dateRange }),
     pollPickerSession: (tokens, clientId, clientSecret, sessionId) =>
       ipcRenderer.invoke('gp:pollPickerSession', { tokens, clientId, clientSecret, sessionId }),
     getPickerItems: (tokens, clientId, clientSecret, sessionId) =>

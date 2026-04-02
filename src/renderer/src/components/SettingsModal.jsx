@@ -140,6 +140,21 @@ export default function SettingsModal({ settings, onSave, onClose }) {
           </div>
 
           {/* ── Google Photos ── */}
+          {/* ── Protection ── */}
+          <div className="settings-section-label" style={{ marginTop: 16 }}>Folder Protection</div>
+
+          <div className="form-group">
+            <label>Protected Keywords</label>
+            <input
+              type="text"
+              value={form.lockedKeywords || ''}
+              onChange={(e) => set('lockedKeywords', e.target.value)}
+              placeholder="kora, family, baby"
+            />
+            <small>Comma-separated. Any folder or file path containing these words (case-insensitive) will be locked and skipped. Applies on next Refresh.</small>
+          </div>
+
+          {/* ── Google Photos ── */}
           <div className="settings-section-label" style={{ marginTop: 16 }}>Google Photos</div>
 
           <div className="gp-setup-note">

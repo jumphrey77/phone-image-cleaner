@@ -1,10 +1,10 @@
 const { execFileSync } = require('child_process')
 const path = require('path')
 
-const PROTECTED_PATTERNS = ['kora']
-
-function isProtected(filePath) {
-  return PROTECTED_PATTERNS.some((p) => filePath.toLowerCase().includes(p))
+// keywords comes from settings.lockedKeywords — injected by main process
+function isProtected(filePath, keywords = ['kora']) {
+  const lower = filePath.toLowerCase()
+  return keywords.some((k) => k && lower.includes(k.toLowerCase()))
 }
 
 function parseLsOutput(raw) {
@@ -53,7 +53,7 @@ const AdbService = {
     }
   },
 
-  listFolders(adbPath, devicePath = '/sdcard/DCIM') {
+  listFolders(adbPath, devicePath = '/sdcard/DCIM', keywords = ['kora']) {
     try {
       const result = execFileSync(adbPath, ['shell', `find "${devicePath}" -maxdepth 1 -type d`], {
         encoding: 'utf8', timeout: 30000
@@ -63,7 +63,7 @@ const AdbService = {
         .filter((f) => f && f !== devicePath)
         .map((folderPath) => {
           const name = path.posix.basename(folderPath)
-          const locked = isProtected(folderPath)
+          const locked = isProtected(folderPath, keywords)
           return { path: folderPath, name, locked, status: locked ? 'locked' : 'pending' }
         })
 
@@ -95,9 +95,9 @@ const AdbService = {
     }
   },
 
-  listFiles(adbPath, folderPath) {
-    if (isProtected(folderPath)) {
-      return { success: false, error: 'This folder is protected (Kora) and cannot be accessed.' }
+  listFiles(adbPath, folderPath, keywords = ['kora']) {
+    if (isProtected(folderPath, keywords)) {
+      return { success: false, error: 'This folder is protected and cannot be accessed.' }
     }
     try {
       const result = execFileSync(
@@ -117,8 +117,8 @@ const AdbService = {
     }
   },
 
-  pullFile(adbPath, remotePath, localPath) {
-    if (isProtected(remotePath)) {
+  pullFile(adbPath, remotePath, localPath, keywords = ['kora']) {
+    if (isProtected(remotePath, keywords)) {
       return { success: false, error: 'Protected file — cannot copy.' }
     }
     try {
@@ -129,8 +129,8 @@ const AdbService = {
     }
   },
 
-  deleteFile(adbPath, remotePath) {
-    if (isProtected(remotePath)) {
+  deleteFile(adbPath, remotePath, keywords = ['kora']) {
+    if (isProtected(remotePath, keywords)) {
       return { success: false, error: 'Protected file — cannot delete.' }
     }
     try {
@@ -141,8 +141,8 @@ const AdbService = {
     }
   },
 
-  deleteFolder(adbPath, folderPath) {
-    if (isProtected(folderPath)) {
+  deleteFolder(adbPath, folderPath, keywords = ['kora']) {
+    if (isProtected(folderPath, keywords)) {
       return { success: false, error: 'Protected folder — cannot delete.' }
     }
     try {

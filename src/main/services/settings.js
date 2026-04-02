@@ -9,10 +9,13 @@ const DEFAULT_SETTINGS = {
   startingGb: 25.55,
   whatIfMode: false,
   configured: false,
+  // Folder/file protection — comma-separated keywords (case-insensitive)
+  lockedKeywords: 'kora',
   // Google Photos OAuth — user sets these from Google Cloud Console
   gpClientId: '',
   gpClientSecret: '',
-  gpTokens: null   // { access_token, refresh_token, expiry_date, ... }
+  gpTokens: null,   // { access_token, refresh_token, expiry_date, ... }
+  gpPickerDoneAction: 'close'
 }
 
 let store = null

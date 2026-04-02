@@ -77,13 +77,24 @@ ipcMain.handle('settings:load', () => SettingsService.load())
 ipcMain.handle('settings:save', (_, settings) => SettingsService.save(settings))
 ipcMain.handle('settings:isConfigured', () => SettingsService.isConfigured())
 
+// Helper — parse lockedKeywords from settings into an array
+function getLockedKeywords() {
+  try {
+    const result = SettingsService.load()
+    const raw = result.settings?.lockedKeywords || 'kora'
+    return raw.split(',').map((k) => k.trim()).filter(Boolean)
+  } catch {
+    return ['kora']
+  }
+}
+
 // ── ADB IPC ───────────────────────────────────────────────────────────────────
 ipcMain.handle('adb:checkConnection', (_, adbPath) => AdbService.checkConnection(adbPath))
-ipcMain.handle('adb:listFolders', (_, { adbPath, devicePath }) => AdbService.listFolders(adbPath, devicePath))
-ipcMain.handle('adb:listFiles', (_, { adbPath, folderPath }) => AdbService.listFiles(adbPath, folderPath))
-ipcMain.handle('adb:pullFile', (_, { adbPath, remotePath, localPath }) => AdbService.pullFile(adbPath, remotePath, localPath))
-ipcMain.handle('adb:deleteFile', (_, { adbPath, remotePath }) => AdbService.deleteFile(adbPath, remotePath))
-ipcMain.handle('adb:deleteFolder', (_, { adbPath, folderPath }) => AdbService.deleteFolder(adbPath, folderPath))
+ipcMain.handle('adb:listFolders', (_, { adbPath, devicePath }) => AdbService.listFolders(adbPath, devicePath, getLockedKeywords()))
+ipcMain.handle('adb:listFiles', (_, { adbPath, folderPath }) => AdbService.listFiles(adbPath, folderPath, getLockedKeywords()))
+ipcMain.handle('adb:pullFile', (_, { adbPath, remotePath, localPath }) => AdbService.pullFile(adbPath, remotePath, localPath, getLockedKeywords()))
+ipcMain.handle('adb:deleteFile', (_, { adbPath, remotePath }) => AdbService.deleteFile(adbPath, remotePath, getLockedKeywords()))
+ipcMain.handle('adb:deleteFolder', (_, { adbPath, folderPath }) => AdbService.deleteFolder(adbPath, folderPath, getLockedKeywords()))
 
 // ── FileSystem IPC ────────────────────────────────────────────────────────────
 ipcMain.handle('fs:verifyFile', (_, { localPath, expectedSize }) => FileSystemService.verifyFile(localPath, expectedSize))
@@ -117,8 +128,8 @@ ipcMain.handle('gp:batchDelete', async (_, { tokens, mediaItemIds, clientId, cli
   GooglePhotosService.batchDelete(tokens, mediaItemIds, clientId, clientSecret))
 
 // ── Picker API IPC ────────────────────────────────────────────────────────────
-ipcMain.handle('gp:createPickerSession', async (_, { tokens, clientId, clientSecret }) =>
-  GooglePhotosService.createPickerSession(tokens, clientId, clientSecret))
+ipcMain.handle('gp:createPickerSession', async (_, { tokens, clientId, clientSecret, dateRange }) =>
+  GooglePhotosService.createPickerSession(tokens, clientId, clientSecret, dateRange || null))
 ipcMain.handle('gp:pollPickerSession', async (_, { tokens, clientId, clientSecret, sessionId }) =>
   GooglePhotosService.pollPickerSession(tokens, clientId, clientSecret, sessionId))
 ipcMain.handle('gp:getPickerItems', async (_, { tokens, clientId, clientSecret, sessionId }) =>

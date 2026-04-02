@@ -203,6 +203,7 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
 
   const [pickerStatus, setPickerStatus] = useState('')
   const [pickerItems, setPickerItems] = useState([])
+  const [pickerMonth, setPickerMonth] = useState('')   // YYYY-MM format
 
   const openPicker = async () => {
     if (!gpReady) {
@@ -212,9 +213,21 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
     setPickerStatus('Creating session…')
     addLog({ action: 'PICKER', result: 'Creating picker session…' })
 
+    // Build date range from pickerMonth (YYYY-MM) if set
+    let dateRange = null
+    if (pickerMonth) {
+      const [y, m] = pickerMonth.split('-').map(Number)
+      const lastDay = new Date(y, m, 0).getDate()  // last day of month
+      dateRange = {
+        startDate: `${pickerMonth}-01`,
+        endDate: `${pickerMonth}-${String(lastDay).padStart(2, '0')}`
+      }
+      addLog({ action: 'PICKER', result: `Filtering to month: ${pickerMonth}` })
+    }
+
     // Step 1: Create session
     const session = await window.api.gp.createPickerSession(
-      settings.gpTokens, settings.gpClientId, settings.gpClientSecret
+      settings.gpTokens, settings.gpClientId, settings.gpClientSecret, dateRange
     )
     if (!session.success) {
       setPickerStatus(`❌ ${session.error}`)
@@ -286,9 +299,18 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {gpReady && (
-            <button className="btn-ghost btn-picker" onClick={openPicker} title="Open Google Photos Picker">
-              ☁ Picker Test {pickerStatus ? `— ${pickerStatus}` : ''}
-            </button>
+            <div className="picker-row">
+              <input
+                type="month"
+                className="picker-month-input"
+                value={pickerMonth}
+                onChange={(e) => setPickerMonth(e.target.value)}
+                title="Filter picker to a specific month (optional)"
+              />
+              <button className="btn-ghost btn-picker" onClick={openPicker} title="Open Google Photos Picker">
+                ☁ Picker {pickerMonth ? pickerMonth : 'All'} {pickerStatus ? `— ${pickerStatus}` : ''}
+              </button>
+            </div>
           )}
           <button className="btn-ghost" onClick={scanDevice} disabled={loading}>
             {loading ? '⏳ Loading…' : '↻ Refresh Device'}
