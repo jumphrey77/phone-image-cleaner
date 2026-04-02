@@ -1,4 +1,7 @@
 node_modules/
+credentials.txt
+.gitignore
+
 delete/
 manual-changes/
 needed-updates.txt
@@ -8,4 +11,3 @@ needed-updates.txt
 .git
 DELETED/
 *.zip
-/node_modules/

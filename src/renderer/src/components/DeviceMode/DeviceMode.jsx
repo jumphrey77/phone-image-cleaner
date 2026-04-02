@@ -79,10 +79,66 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
     document.title = `Photo Cleanup Manager — ${folder.name} (${result.files.length} files)`
   }
 
+  const renameFolder = async (folder, newName) => {
+    const parentPath = folder.path.substring(0, folder.path.lastIndexOf('/'))
+    const newPath = `${parentPath}/${newName}`
+    if (whatIf) {
+      addLog({ action: '[WHATIF] RENAME', result: `Would rename: ${folder.name} → ${newName}` })
+      return
+    }
+    const result = await window.api.adb.renameFolder(settings.adbPath, folder.path, newPath)
+    if (result.success) {
+      addLog({ action: 'RENAME', result: `${folder.name} → ${newName}` })
+      const updated = folders.map((f) =>
+        f.path === folder.path ? { ...f, path: newPath, name: newName } : f
+      )
+      setFolders(updated)
+      setSelectedFolder(null)
+      setFiles([])
+      await window.api.db.saveFolders(updated)
+      document.title = 'Photo Cleanup Manager'
+    } else {
+      addLog({ action: 'RENAME', result: 'Failed', error: result.error })
+    }
+  }
+
+  const deleteAllEmptyFolders = async () => {
+    const emptyFolders = folders.filter((f) => f.fileCount === 0 && !f.locked)
+    if (emptyFolders.length === 0) { addLog({ action: 'DELETE EMPTY', result: 'No empty folders found' }); return }
+    // WhatIf-aware prefix for the summary log
+    const pfx = whatIf ? '[WHATIF] ' : ''
+    addLog({ action: `${pfx}DELETE EMPTY`, result: `${whatIf ? 'Would delete' : 'Deleting'} ${emptyFolders.length} empty folders…` })
+    let count = 0
+    for (const f of emptyFolders) {
+      if (whatIf) {
+        addLog({ action: '[WHATIF] DELETE FOLDER', result: `Would delete: ${f.name}` })
+        count++
+      } else {
+        const r = await window.api.adb.deleteFolder(settings.adbPath, f.path)
+        if (r.success) { addLog({ action: 'DELETE FOLDER', result: `Deleted: ${f.name}` }); count++ }
+        else addLog({ action: 'DELETE FOLDER', result: `Failed: ${f.name}`, error: r.error })
+      }
+    }
+    // Only update UI and DB when NOT in WhatIf — in WhatIf folders stay visible
+    if (!whatIf) {
+      const updated = folders.filter((f) => f.fileCount !== 0 || f.locked)
+      setFolders(updated)
+      await window.api.db.saveFolders(updated)
+    }
+    addLog({ action: `${pfx}DELETE EMPTY`, result: `${whatIf ? 'Simulation complete' : 'Done'} — ${count} folder${count !== 1 ? 's' : ''} ${whatIf ? 'would be' : ''} removed` })
+  }
+
+  const switchToMtp = async () => {
+    addLog({ action: 'MTP', result: 'Switching device to MTP file transfer mode…' })
+    const result = await window.api.adb.switchToMtp(settings.adbPath)
+    if (result.success) addLog({ action: 'MTP', result: '✅ MTP mode activated — check device notification' })
+    else addLog({ action: 'MTP', result: 'Failed', error: result.error })
+  }
+
   const deleteEmptyFolder = async (folder) => {
     if (whatIf) {
+      // WhatIf: log only — do NOT modify UI or touch device
       addLog({ action: '[WHATIF] DELETE FOLDER', result: `Would delete empty folder: ${folder.name}` })
-      setFolders((prev) => prev.filter((f) => f.path !== folder.path))
       return
     }
     const result = await window.api.adb.deleteFolder(settings.adbPath, folder.path)
@@ -181,11 +237,12 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
 
     const newStatus = action === 'leave-alone' ? 'locked' : action === 'skip' ? 'skipped' : 'done'
     if (!whatIf) {
+      // Only persist and visually update folder status in live mode
       await window.api.db.updateFolderStatus(selectedFolder.path, newStatus)
+      setFolders((prev) =>
+        prev.map((f) => (f.path === selectedFolder.path ? { ...f, status: newStatus } : f))
+      )
     }
-    setFolders((prev) =>
-      prev.map((f) => (f.path === selectedFolder.path ? { ...f, status: newStatus } : f))
-    )
 
     if (!whatIf) onSpaceFreed(freedBytes / 1024 / 1024)
 
@@ -222,7 +279,9 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
         startDate: `${pickerMonth}-01`,
         endDate: `${pickerMonth}-${String(lastDay).padStart(2, '0')}`
       }
-      addLog({ action: 'PICKER', result: `Filtering to month: ${pickerMonth}` })
+      addLog({ action: 'PICKER', result: `Month filter: ${dateRange.startDate} → ${dateRange.endDate} (client-side — select any photos, app will keep only this month's)` })
+    } else {
+      addLog({ action: 'PICKER', result: 'No month filter — all selected photos will be returned' })
     }
 
     // Step 1: Create session
@@ -261,10 +320,22 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
       return
     }
 
-    setPickerItems(result.items)
-    setPickerStatus(`✅ Got ${result.total} items`)
-    addLog({ action: 'PICKER', result: `${result.total} items selected` })
-    result.items.forEach((item) => {
+    // Client-side date filter — Picker API may not support dateFilter server-side
+    let items = result.items
+    if (dateRange && pickerMonth) {
+      const before = items.length
+      items = items.filter((item) => item.date && item.date.startsWith(pickerMonth))
+      if (before !== items.length) {
+        addLog({ action: 'PICKER', result: `Client-side filter: ${before} → ${items.length} items matching ${pickerMonth}` })
+      } else {
+        addLog({ action: 'PICKER', result: `All ${items.length} items already within ${pickerMonth}` })
+      }
+    }
+
+    setPickerItems(items)
+    setPickerStatus(`✅ Got ${items.length} items`)
+    addLog({ action: 'PICKER', result: `${items.length} item${items.length !== 1 ? 's' : ''} selected` })
+    items.forEach((item) => {
       addLog({ action: 'PICKER ITEM', filename: item.filename, result: `${item.date} | ${item.type} | ID: ${item.id.substring(0, 20)}…` })
     })
 
@@ -308,12 +379,15 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
                 title="Filter picker to a specific month (optional)"
               />
               <button className="btn-ghost btn-picker" onClick={openPicker} title="Open Google Photos Picker">
-                ☁ Picker {pickerMonth ? pickerMonth : 'All'} {pickerStatus ? `— ${pickerStatus}` : ''}
+                ☁ Picker {pickerMonth || 'All'} {pickerStatus ? `— ${pickerStatus}` : ''}
               </button>
             </div>
           )}
+          <button className="btn-ghost" onClick={switchToMtp} title="Switch phone to MTP file transfer mode">
+            📲 MTP
+          </button>
           <button className="btn-ghost" onClick={scanDevice} disabled={loading}>
-            {loading ? '⏳ Loading…' : '↻ Refresh Device'}
+            {loading ? '⏳ Loading…' : '↻ Refresh'}
           </button>
         </div>
       </div>
@@ -337,10 +411,13 @@ export default function DeviceMode({ settings, whatIf, onSpaceFreed, addLog, onS
           suggestedName={suggestedName}
           onSuggestedNameChange={setSuggestedName}
           onExecute={executeAction}
+          onRenameFolder={renameFolder}
+          onDeleteAllEmpty={deleteAllEmptyFolders}
           executing={executing}
           progress={executionProgress}
           whatIf={whatIf}
           gpReady={gpReady}
+          emptyFolderCount={folders.filter((f) => f.fileCount === 0 && !f.locked).length}
         />
       </div>
     </div>

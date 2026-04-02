@@ -104,24 +104,38 @@ button { cursor: pointer; }
 .type-video td { color: #93c5fd; }
 
 /* ── Action Panel ─────────────────────────────────────────────────────────── */
-.action-panel { width: 260px; flex-shrink: 0; border-left: 1px solid #2d3148; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #13161f; overflow-y: auto; }
-.action-panel.empty, .action-panel h3 { font-size: 13px; color: #9ca3af; }
-.ap-empty { color: #6b7280; text-align: center; margin-top: 40px; }
-.ap-locked { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 40px; color: #6b7280; font-size: 20px; text-align: center; }
-.ap-folder-name label { display: block; font-size: 10px; color: #9ca3af; text-transform: uppercase; margin-bottom: 4px; }
+.action-panel { width: 260px; flex-shrink: 0; border-left: 1px solid #2d3148; display: flex; flex-direction: column; background: #13161f; overflow-y: auto; }
+.action-panel.empty { gap: 12px; }
+.ap-tabs { display: flex; border-bottom: 1px solid #2d3148; flex-shrink: 0; }
+.ap-tab { flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; color: #6b7280; padding: 8px 4px; font-size: 12px; font-weight: 500; cursor: pointer; }
+.ap-tab:hover { color: #9ca3af; }
+.ap-tab.active { color: #93c5fd; border-bottom-color: #3b82f6; }
+.ap-tab-body { display: flex; flex-direction: column; gap: 0; flex: 1; overflow-y: auto; }
+.ap-section { padding: 12px 14px; border-bottom: 1px solid #1e2130; display: flex; flex-direction: column; gap: 6px; }
+.ap-section-label { font-size: 10px; color: #4b5563; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+.ap-empty { color: #6b7280; text-align: center; padding: 24px 14px 8px; font-size: 13px; }
+.ap-bulk-section { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.ap-bulk-section small { font-size: 10px; color: #6b7280; }
+.ap-locked { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 14px; color: #6b7280; font-size: 20px; text-align: center; }
+.ap-folder-name { display: flex; flex-direction: column; gap: 3px; }
 .ap-folder-name input { width: 100%; background: #0f1117; border: 1px solid #2d3148; border-radius: 6px; padding: 6px 8px; color: #e5e7eb; }
-.ap-folder-name small { display: block; color: #6b7280; margin-top: 3px; font-size: 10px; }
-.ap-actions { display: flex; flex-direction: column; gap: 8px; }
-.ap-action { padding: 10px; border: 1px solid #2d3148; border-radius: 8px; cursor: pointer; }
+.ap-folder-name small { color: #6b7280; font-size: 10px; }
+.ap-actions { display: flex; flex-direction: column; gap: 6px; }
+.ap-action { padding: 8px 10px; border: 1px solid #2d3148; border-radius: 8px; cursor: pointer; }
 .ap-action:hover:not(.disabled) { border-color: #3b82f6; background: #1e2d4a; }
 .ap-action.selected { border-color: #3b82f6; background: #1e2d4a; }
 .ap-action.disabled { opacity: .5; cursor: default; }
 .ap-action-label { font-size: 12px; font-weight: 500; }
 .ap-action-desc { font-size: 10px; color: #6b7280; margin-top: 3px; }
-.ap-progress { margin-top: 4px; }
+.ap-progress { margin: 4px 0; }
 .ap-progress-bar { height: 6px; background: #2d3148; border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
 .ap-progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width .2s; }
 .ap-progress-text { font-size: 10px; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-block { width: 100%; padding: 7px; text-align: center; }
+.btn-danger-ghost { background: transparent; border: 1px solid #374151; color: #f87171; border-radius: 6px; padding: 6px 12px; font-size: 12px; }
+.btn-danger-ghost:hover:not(:disabled) { border-color: #ef4444; background: #1f1010; }
+.btn-danger-ghost:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary.btn-execute { margin: 12px 14px 14px; width: calc(100% - 28px); padding: 12px; font-size: 14px; }
 
 /* ── Connection status dots ───────────────────────────────────────────────── */
 .st-connections { display: flex; gap: 12px; align-items: center; }
@@ -188,6 +202,18 @@ button { cursor: pointer; }
 .picker-row { display: flex; align-items: center; gap: 6px; }
 .picker-month-input { background: #0f1117; border: 1px solid #2d3148; border-radius: 6px; color: #e5e7eb; padding: 4px 8px; font-size: 12px; }
 .picker-month-input:focus { outline: none; border-color: #3b82f6; }
+.picker-month-input::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+.picker-month-input::-webkit-inner-spin-button { display: none; }
+
+/* ── Month group headers (FolderList month view) ──────────────────────────── */
+.fl-month-group { border-bottom: 1px solid #1e2130; }
+.fl-month-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #1a1d27; cursor: pointer; user-select: none; }
+.fl-month-header:hover { background: #1e2d4a; }
+.fl-month-arrow { font-size: 9px; color: #4b5563; flex-shrink: 0; }
+.fl-month-label { font-size: 12px; font-weight: 600; color: #93c5fd; flex: 1; }
+.fl-month-meta { font-size: 10px; color: #4b5563; flex-shrink: 0; }
+.fl-group-toggle { display: flex; gap: 3px; }
+.fl-count-row { font-size: 10px; color: #4b5563; }
 
 /* ── Cloud column badges ──────────────────────────────────────────────────── */
 .cloud-yes { color: #4ade80; }

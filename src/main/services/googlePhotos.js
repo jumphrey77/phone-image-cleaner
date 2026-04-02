@@ -132,30 +132,15 @@ const GooglePhotosService = {
   // ── Picker API ────────────────────────────────────────────────────────────
 
   // Step 1: Create a picker session — returns { sessionId, pickerUri }
-  // dateRange: optional { startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
+  // Note: Picker API does NOT support any filters on the session object (confirmed 400 error).
+  // Date filtering is handled client-side after items are retrieved.
+  // dateRange param is kept in signature so callers don't break, but is ignored here.
   async createPickerSession(tokens, clientId, clientSecret, dateRange = null) {
     try {
       const { accessToken } = await getAccessToken(tokens, clientId, clientSecret)
 
-      // Build request body — add date filter if provided
-      const body = {}
-      if (dateRange?.startDate && dateRange?.endDate) {
-        const parseDate = (s) => {
-          const [y, m, d] = s.split('-').map(Number)
-          return { year: y, month: m, day: d }
-        }
-        body.filters = {
-          dateFilter: {
-            dateRanges: [{
-              startDate: parseDate(dateRange.startDate),
-              endDate: parseDate(dateRange.endDate)
-            }]
-          }
-        }
-      }
-
       const resp = await new Promise((resolve, reject) => {
-        const data = JSON.stringify(body)
+        const data = JSON.stringify({})
         const options = {
           hostname: 'photospicker.googleapis.com',
           path: '/v1/sessions',

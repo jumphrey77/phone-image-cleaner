@@ -19,7 +19,9 @@ const api = {
     listFiles: (adbPath, folderPath) => ipcRenderer.invoke('adb:listFiles', { adbPath, folderPath }),
     pullFile: (adbPath, remotePath, localPath) => ipcRenderer.invoke('adb:pullFile', { adbPath, remotePath, localPath }),
     deleteFile: (adbPath, remotePath) => ipcRenderer.invoke('adb:deleteFile', { adbPath, remotePath }),
-    deleteFolder: (adbPath, folderPath) => ipcRenderer.invoke('adb:deleteFolder', { adbPath, folderPath })
+    deleteFolder: (adbPath, folderPath) => ipcRenderer.invoke('adb:deleteFolder', { adbPath, folderPath }),
+    renameFolder: (adbPath, oldPath, newPath) => ipcRenderer.invoke('adb:renameFolder', { adbPath, oldPath, newPath }),
+    switchToMtp: (adbPath) => ipcRenderer.invoke('adb:switchToMtp', { adbPath })
   },
   fs: {
     verifyFile: (localPath, expectedSize) => ipcRenderer.invoke('fs:verifyFile', { localPath, expectedSize }),

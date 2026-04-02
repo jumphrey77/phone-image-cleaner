@@ -141,6 +141,27 @@ const AdbService = {
     }
   },
 
+  renameFolder(adbPath, oldPath, newPath, keywords = ['kora']) {
+    if (isProtected(oldPath, keywords)) {
+      return { success: false, error: 'Protected folder — cannot rename.' }
+    }
+    try {
+      execFileSync(adbPath, ['shell', `mv "${oldPath}" "${newPath}"`], { encoding: 'utf8', timeout: 15000 })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
+  switchToMtp(adbPath) {
+    try {
+      execFileSync(adbPath, ['shell', 'svc usb setFunctions mtp'], { encoding: 'utf8', timeout: 8000 })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+
   deleteFolder(adbPath, folderPath, keywords = ['kora']) {
     if (isProtected(folderPath, keywords)) {
       return { success: false, error: 'Protected folder — cannot delete.' }

@@ -95,6 +95,8 @@ ipcMain.handle('adb:listFiles', (_, { adbPath, folderPath }) => AdbService.listF
 ipcMain.handle('adb:pullFile', (_, { adbPath, remotePath, localPath }) => AdbService.pullFile(adbPath, remotePath, localPath, getLockedKeywords()))
 ipcMain.handle('adb:deleteFile', (_, { adbPath, remotePath }) => AdbService.deleteFile(adbPath, remotePath, getLockedKeywords()))
 ipcMain.handle('adb:deleteFolder', (_, { adbPath, folderPath }) => AdbService.deleteFolder(adbPath, folderPath, getLockedKeywords()))
+ipcMain.handle('adb:renameFolder', (_, { adbPath, oldPath, newPath }) => AdbService.renameFolder(adbPath, oldPath, newPath, getLockedKeywords()))
+ipcMain.handle('adb:switchToMtp', (_, { adbPath }) => AdbService.switchToMtp(adbPath))
 
 // ── FileSystem IPC ────────────────────────────────────────────────────────────
 ipcMain.handle('fs:verifyFile', (_, { localPath, expectedSize }) => FileSystemService.verifyFile(localPath, expectedSize))
